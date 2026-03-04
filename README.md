@@ -1,7 +1,7 @@
 # LINE Account Registration Client (linejs)
 
 LINE の **PrimaryAccountInitService (PAIS)** API を使用して、電話番号ベースのアカウント登録を行う Node.js スクリプトです。  
-Python の [CHRLINE](https://github.com/test/CHRLINE) ライブラリで書かれた `test_register.py` を、JavaScript / [@evex/linejs](https://jsr.io/@evex/linejs) に移植したものです。
+Python の [CHRLINE](https://github.com/DeachSword/CHRLINE) ライブラリで書かれた `test_register.py` を、JavaScript / [@evex/linejs](https://jsr.io/@evex/linejs) に移植したものです。
 
 ---
 
