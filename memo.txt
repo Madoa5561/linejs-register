@@ -17,3 +17,6 @@ Network
 
 Security
 - risk score対策
+
+
+Authkey ▶︎ PrimaryToken ▶︎ AuthToken
