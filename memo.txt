@@ -1,0 +1,19 @@
+LEGY
+- leGyAesKeyをsession単位で固定
+
+Device
+- Device fingerprintの固定
+- x-line-device header追加
+- androidId生成
+
+Register
+- createSessionV2へ移行
+- registerフローの更新
+
+Network
+- HTTP/2対応
+- ランダムなRequest Intervalの追加
+- TLS fingerprint改
+
+Security
+- risk score対策
