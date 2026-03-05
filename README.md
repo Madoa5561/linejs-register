@@ -318,13 +318,10 @@ PrimaryToken = "{mid}:{iat}.{digest}"
 ## ディレクトリ構成
 
 ```
-accountCreate/
+linejs-register/
 ├── main.js           # メインスクリプト (JavaScript / ESM)
-├── register.py       # 元の Python 実装 (CHRLINE ベース、参考用)
 ├── package.json      # npm 設定 (type: module)
-├── .npmrc            # JSR レジストリ設定
 ├── node_modules/     # 依存パッケージ
-└── CHRLINE_0/        # Python CHRLINE ライブラリ (参考用)
 ```
 
 ---
