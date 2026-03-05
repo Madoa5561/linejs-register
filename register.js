@@ -6,18 +6,13 @@ import readline from "node:readline";
 import nacl from "tweetnacl";
 import xxhashInit from "xxhash-wasm";
 
-// ============================================================
-// Config — edit these values before running
-// ============================================================
+// config
 const UPDATE_NAME = true;
 const DISPLAY_NAME = "moyashi_example";
 const PASSWORD = "@moyashi0171R";
 const DEVICE_MODEL = "SM-N950F";
 
-// ============================================================
-// Custom Errors
-// ============================================================
-
+// error parse
 class PaisError extends Error {
   constructor(method, code, message, raw) {
     super(`[${method}] Error ${code}: ${message}`);
@@ -38,10 +33,7 @@ class LeGyTransportError extends Error {
   }
 }
 
-// ============================================================
-// Helpers
-// ============================================================
-
+// helpers
 function ask(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => rl.question(question, (ans) => { rl.close(); resolve(ans); }));
@@ -67,17 +59,6 @@ function createToken(authKey) {
   const iat = getIssuedAt();
   return `${mid}:${iat}.${getDigest(key, iat)}`;
 }
-
-// ============================================================
-// LEGY Encryption Layer
-//
-// LINE's LEGY proxy (gf.line.naver.jp/enc) wraps every
-// registration request in AES-128-CBC encryption with a
-// per-session ephemeral key transmitted via RSA-OAEP.
-//
-// Request:  encHeaders({x-lpqs:path}) + thriftBody → AES-CBC → + xxhash HMAC
-// Response: AES-CBC decrypt → strip inner headers → thrift body
-// ============================================================
 
 const LINE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsMC6HAYeMq4R59e2yRw6
@@ -188,10 +169,6 @@ function leGyHmac(key, data, h) {
   return Buffer.from(outerHex, "hex");
 }
 
-// ============================================================
-// Encrypted request transport
-// ============================================================
-
 const base = new BaseClient({ device: "ANDROID" });
 let xxh = null;
 
@@ -229,10 +206,7 @@ async function leGyRequest(args, method, ptype = 3, token = null, path = "/acct/
   if ((leInt & 2) === 2) {
     enc = Buffer.concat([enc, leGyHmac(leGyAesKey, enc, xxh)]);
   }
-
   const ptypeName = ptype === 3 ? "TBINARY" : "TCOMPACT";
-
-  // Send via node:https to preserve tab characters in headers
   const { status, body: raw } = await new Promise((resolve, reject) => {
     const url = new URL(LEGY_GF_URL);
     const req = https.request({
@@ -269,12 +243,10 @@ async function leGyRequest(args, method, ptype = 3, token = null, path = "/acct/
     req.write(enc);
     req.end();
   });
-
   if (!raw.length) {
     throw new LeGyTransportError(method, status, null, "Empty response body");
   }
-
-  // Decrypt (LEGY may encrypt even error responses)
+  // dec
   let dec;
   try {
     dec = leGyDecrypt(raw);
@@ -282,20 +254,13 @@ async function leGyRequest(args, method, ptype = 3, token = null, path = "/acct/
   } catch (e) {
     throw new LeGyTransportError(method, status, null, `Decryption failed: ${e.message}`);
   }
-
   const { headers: innerHeaders, data: thriftData } = decHeaders(dec);
-
-  // Check LEGY inner status
   const innerStatus = innerHeaders["x-lc"];
   if (status !== 200 || (innerStatus && innerStatus !== "200")) {
     throw new LeGyTransportError(method, status, innerStatus,
       `Server rejected request (HTTP ${status}, x-lc=${innerStatus ?? "n/a"})`);
   }
-
-  // Parse thrift response
   const parsed = base.thrift.readThrift(new Uint8Array(thriftData), protocol);
-
-  // Thrift field 1 = exception
   if (parsed.data[1]) {
     const ex = parsed.data[1];
     throw new PaisError(method, ex[1], ex[2], ex);
@@ -306,22 +271,12 @@ async function leGyRequest(args, method, ptype = 3, token = null, path = "/acct/
 
 /** PAIS registration request shorthand (TBinary, unauthenticated). */
 const paisRequest = (args, name) => leGyRequest(args, name, 3, null, "/acct/pais/v1");
-
-// ============================================================
-// Key material for ECDH (generated once per run)
-// ============================================================
-
 const uuid = crypto.randomUUID().replace(/-/g, "");
 const secretKey = nacl.randomBytes(32);
 const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
 const regNonce = crypto.randomBytes(16);
 
-// ============================================================
-// Registration Flow
-// ============================================================
-
 async function main() {
-  // 1. Open registration session
   console.log("Step 1/11: Opening session...");
   const session = await paisRequest(
     LINEStruct.openSession_args({ request: { metaData: {} } }),
@@ -329,20 +284,14 @@ async function main() {
   );
   const authSessionId = typeof session === "string" ? session : session[1];
   console.log(`  Session ID: ${authSessionId}`);
-
-  // 2. Get country info
   console.log("Step 2/11: Getting country info...");
   const country = await paisRequest(
     LINEStruct.getCountryInfo_args({ authSessionId }),
     "getCountryInfo",
   );
   console.log(`  Country: ${country[1]}, GDPR restricted: ${country[2]}`);
-
-  // 3. User input: phone number & region
   const phone = await ask("Phone number (e.g. 09012345678): ");
   const region = await ask("Region code (e.g. JP, TH, TW): ");
-
-  // 4. Get phone verification methods
   console.log("Step 4/11: Getting verification methods...");
   const pv = await paisRequest(
     LINEStruct.getPhoneVerifMethodV2_args({
@@ -357,8 +306,6 @@ async function main() {
   const formattedPhone = pv[3];
   const verifMethods = pv[1];
   console.log(`  Formatted: ${formattedPhone}  Methods: [${verifMethods}]`);
-
-  // 5. Request PIN code
   console.log("Step 5/11: Sending PIN code...");
   const sendPin = await paisRequest(
     LINEStruct.requestToSendPhonePinCode_args({
@@ -371,8 +318,6 @@ async function main() {
     "requestToSendPhonePinCode",
   );
   console.log(`  PIN sent. Available methods: [${sendPin[1]}]`);
-
-  // 6. Verify PIN code
   const pin = await ask("PIN code: ");
   console.log("Step 6/11: Verifying PIN...");
   const verify = await paisRequest(
@@ -389,16 +334,12 @@ async function main() {
     console.log(`  Existing account found: "${verify[11][1]}"`);
   }
   console.log(`  accountExist=${verify[1]}, sameUdidExist=${verify[2]}, allowToRegister=${verify[3]}`);
-
-  // 7. Validate profile (display name)
   console.log("Step 7/11: Validating profile...");
   await paisRequest(
     LINEStruct.validateProfile_args({ authSessionId, displayName: DISPLAY_NAME }),
     "validateProfile",
   );
   console.log(`  Profile OK: "${DISPLAY_NAME}"`);
-
-  // 8. Exchange encryption keys (Curve25519 ECDH)
   console.log("Step 8/11: Exchanging encryption keys...");
   const b64Pub = Buffer.from(keyPair.publicKey).toString("base64");
   const b64Nonce = Buffer.from(regNonce).toString("base64");
@@ -413,28 +354,21 @@ async function main() {
     ],
     "exchangeEncryptionKey",
   );
-
   const srvKey = Buffer.from(exKey[1], "base64");
   const srvNonce = Buffer.from(exKey[2], "base64");
   console.log("  Key exchange complete.");
-
-  // 9. Derive shared secret & encrypt password
   console.log("Step 9/11: Encrypting password...");
   const { sharedKey } = await import("curve25519-js");
   const shared = sharedKey(secretKey, srvKey);
-
   const masterKey = getSHA256Sum(Buffer.from("master_key"), Buffer.from(shared), regNonce, srvNonce);
   const aesKey = getSHA256Sum(Buffer.from("aes_key"), masterKey);
   const hmacKey = getSHA256Sum(Buffer.from("hmac_key"), masterKey);
-
   const pwCipher = crypto.createCipheriv("aes-128-cbc", aesKey.subarray(0, 16), aesKey.subarray(16, 32));
   pwCipher.setAutoPadding(true);
   const pwEnc = Buffer.concat([pwCipher.update(PASSWORD, "utf-8"), pwCipher.final()]);
   const pwHmac = crypto.createHmac("sha256", hmacKey).update(pwEnc).digest();
   const encPwd = Buffer.concat([pwEnc, pwHmac]).toString("base64");
   console.log("  Password encrypted.");
-
-  // 10. Set password
   console.log("Step 10/11: Setting password...");
   await paisRequest(
     [
@@ -447,19 +381,15 @@ async function main() {
     "setPassword",
   );
   console.log("  Password set.");
-
-  // 11. Register account
   console.log("Step 11/11: Registering account...");
   const reg = await paisRequest(
     LINEStruct.registerPrimaryUsingPhoneWithTokenV3_args({ authSessionId }),
     "registerPrimaryUsingPhoneWithTokenV3",
   );
-
   const authKey = reg[1];
   const tokenResult = reg[2];
   const mid = reg[3];
   const primaryToken = createToken(authKey);
-
   console.log("\n===== Registration Complete =====");
   console.log(`MID:            ${mid}`);
   console.log(`AuthKey:        ${authKey}`);
@@ -469,8 +399,6 @@ async function main() {
   console.log(`DurationSec:    ${tokenResult[3]}`);
   console.log(`LoginSessionId: ${tokenResult[5]}`);
   console.log("=================================\n");
-
-  // Optional: update display name via TalkService
   if (UPDATE_NAME) {
     console.log(`Updating display name to "${DISPLAY_NAME}"...`);
     try {
@@ -486,7 +414,6 @@ async function main() {
       console.error(`  Failed to update display name: ${e.message}`);
     }
   }
-
   console.log("Done!");
 }
 
